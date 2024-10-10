@@ -3,6 +3,8 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <memory>
+#include <ostream>
 #include <utility>
 
 namespace std {
@@ -27,8 +29,7 @@ constexpr auto Strlen(const Char* const str) noexcept -> size_t {
   }
 }
 template <typename Char, size_t Size>
-constexpr auto Strlen([[maybe_unused]] const Char (&str)[Size]) noexcept
-    -> size_t {
+constexpr auto Strlen([[maybe_unused]] const Char (&str)[Size]) noexcept {
   return Size - 1;
 }
 template <typename Char>
@@ -48,8 +49,7 @@ constexpr auto Strcmp(const Char* const str1, const Char* const str2) noexcept {
   }
 }
 template <typename Char>
-constexpr auto Streq(const Char* const str1,
-                     const Char* const str2) noexcept -> bool {
+constexpr auto Streq(const Char* const str1, const Char* const str2) noexcept {
   return Strcmp(str1, str2) == 0;
 }
 }  // namespace Detail
@@ -97,19 +97,19 @@ class BasicString {
   }
 
  private:
-  inline auto DeallocateCurrentString() -> void {
+  auto DeallocateCurrentString() -> void {
     if (!is_small) {
       AltyTraits::deallocate(allocator, storage.alloc.ptr,
                              storage.alloc.capacity);
     }
   }
 
-  inline auto TakeCStr(const Char* const str) -> void {
+  auto TakeCStr(const Char* const str) -> void {
     length = Detail::Strlen(str);
     TakeCStr(str, length);
   }
 
-  inline auto TakeCStr(const Char* const str, const size_t len) -> void {
+  auto TakeCStr(const Char* const str, const size_t len) -> void {
     if (len > MaxBufSize) {
       storage.alloc.capacity = len + 1;
       storage.alloc.ptr =
@@ -139,7 +139,7 @@ class BasicString {
   }
   constexpr BasicString(BasicString&& other) noexcept { swap(other); }
   auto operator=(const BasicString& other) -> BasicString& {
-    if (this not_eq &other) {
+    if (this != &other) {
       DeallocateCurrentString();
       TakeCStr(other.data(), other.length);
     }
@@ -174,15 +174,13 @@ class BasicString {
   }
 
  private:
-  friend inline auto operator<<(
-      std::basic_ostream<Char, std::char_traits<Char>>& os,
-      const BasicString<Char, MyAlty>& string)
-      -> std::basic_ostream<Char, std::char_traits<Char>>& {
-    return os.write(string.data(), string.length);
+  friend auto operator<<(std::ostream& os, const BasicString<Char, MyAlty>& str)
+      -> std::ostream& {
+    return os.write(str.data(), str.length);
   }
   friend constexpr auto operator==(const BasicString& lhs,
                                    const BasicString& rhs) noexcept -> bool {
-    return (lhs.length == rhs.length) and Streq(lhs.data(), rhs.data());
+    return (lhs.length == rhs.length) && Streq(lhs.data(), rhs.data());
   }
   friend constexpr auto operator==(const BasicString& lhs,
                                    const Char* const rhs) noexcept -> bool {
