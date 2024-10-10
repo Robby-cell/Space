@@ -17,9 +17,9 @@ struct basic_ostream;
 namespace Space {
 namespace Detail {
 template <typename Char>
-constexpr auto Strlen(const Char* const str) noexcept -> size_t {
+constexpr auto Strlen(const Char* const str) noexcept -> std::size_t {
   if (str) [[likely]] {
-    size_t length = 0;
+    std::size_t length = 0;
     while (str[length] != Char(0)) {
       ++length;
     }
@@ -28,14 +28,14 @@ constexpr auto Strlen(const Char* const str) noexcept -> size_t {
     return 0;
   }
 }
-template <typename Char, size_t Size>
-constexpr auto Strlen([[maybe_unused]] const Char (&str)[Size]) noexcept {
+template <typename Char, std::size_t Size>
+constexpr auto Strlen(const Char (&)[Size]) noexcept -> std::size_t {
   return Size - 1;
 }
 template <typename Char>
 constexpr auto Strcmp(const Char* const str1, const Char* const str2) noexcept {
   ptrdiff_t difference{0};
-  size_t index{0};
+  std::size_t index{0};
   while (true) {
     char c1 = str1[index];
     char c2 = str2[index];
@@ -68,7 +68,7 @@ class BasicString {
   using const_reference = const Char&;
   using pointer = Char*;
   using const_pointer = const Char*;
-  using size_type = size_t;
+  using size_type = std::size_t;
   using difference_type = ptrdiff_t;
 
   using allocator_type = Alty;
@@ -79,9 +79,10 @@ class BasicString {
 
   struct StringAlloc {
     Char* ptr;
-    size_t capacity;
+    std::size_t capacity;
   };
-  static constexpr size_t MaxBufSize{(sizeof(StringAlloc) / sizeof(Char)) - 1};
+  static constexpr std::size_t MaxBufSize{(sizeof(StringAlloc) / sizeof(Char)) -
+                                          1};
   union Storage {
     Char buf[MaxBufSize] = {};
     StringAlloc alloc;
@@ -91,50 +92,61 @@ class BasicString {
   constexpr auto swap(BasicString& other) noexcept -> void {
     using std::swap;
 
-    std::swap(storage, other.storage);
-    std::swap(length, other.length);
-    std::swap(is_small, other.is_small);
+    std::swap(compressed.storage, other.compressed.storage);
+    std::swap(compressed.length, other.compressed.length);
+    std::swap(compressed.is_small, other.compressed.is_small);
   }
 
  private:
   auto DeallocateCurrentString() -> void {
-    if (!is_small) {
-      AltyTraits::deallocate(allocator, storage.alloc.ptr,
-                             storage.alloc.capacity);
+    if (!compressed.is_small) {
+      AltyTraits::deallocate(compressed, compressed.storage.alloc.ptr,
+                             compressed.storage.alloc.capacity);
     }
   }
 
   auto TakeCStr(const Char* const str) -> void {
-    length = Detail::Strlen(str);
-    TakeCStr(str, length);
+    compressed.length = Detail::Strlen(str);
+    TakeCStr(str, compressed.length);
   }
 
-  auto TakeCStr(const Char* const str, const size_t len) -> void {
+  auto TakeCStr(const Char* const str, const std::size_t len) -> void {
     if (len > MaxBufSize) {
-      storage.alloc.capacity = len + 1;
-      storage.alloc.ptr =
-          AltyTraits::allocate(allocator, storage.alloc.capacity);
+      compressed.storage.alloc.capacity = len + 1;
+      compressed.storage.alloc.ptr =
+          AltyTraits::allocate(compressed, compressed.storage.alloc.capacity);
 
-      std::copy(str, str + len, storage.alloc.ptr);
+      std::copy(str, str + len, compressed.storage.alloc.ptr);
 
-      storage.alloc.ptr[len] = Char(0);
-      is_small = false;
+      compressed.storage.alloc.ptr[len] = Char(0);
+      compressed.is_small = false;
     } else {
-      std::copy(str, str + len, storage.buf);
+      std::copy(str, str + len, compressed.storage.buf);
 
-      storage.buf[len] = Char(0);
-      is_small = true;
+      compressed.storage.buf[len] = Char(0);
+      compressed.is_small = true;
     }
   }
 
  public:
-  constexpr BasicString() noexcept : storage() {}
-  constexpr explicit BasicString(const Char* const str) : storage() {
+  constexpr BasicString() noexcept : compressed() {}
+  constexpr explicit BasicString(const Char* const str)
+      : compressed{.storage = Storage()} {
     TakeCStr(str);
+  }
+  constexpr BasicString(const Char* const str, const std::size_t len)
+      : compressed{.storage = Storage()} {
+    TakeCStr(str, len);
   }
 
   constexpr BasicString(const BasicString& other)
-      : storage(), length(other.length), is_small(other.is_small) {
+      :  compressed{
+        .storage = Storage(),
+        .length = other.length,
+        .is_small = other.is_small,
+      }
+      // storage(), length(other.length), is_small(other.is_small)
+       {
     TakeCStr(other.storage.alloc.ptr);
   }
   constexpr BasicString(BasicString&& other) noexcept { swap(other); }
@@ -159,18 +171,21 @@ class BasicString {
   ~BasicString() { DeallocateCurrentString(); }
 
   constexpr auto data() const noexcept -> const Char* {
-    if (is_small) {
-      return storage.buf;
+    if (compressed.is_small) {
+      return compressed.storage.buf;
     } else {
-      return storage.alloc.ptr;
+      return compressed.storage.alloc.ptr;
     }
   }
   constexpr auto data() noexcept -> Char* {
-    if (is_small) {
-      return storage.buf;
+    if (compressed.is_small) {
+      return compressed.storage.buf;
     } else {
-      return storage.alloc.ptr;
+      return compressed.storage.alloc.ptr;
     }
+  }
+  constexpr auto length() const noexcept -> size_type {
+    return compressed.length;
   }
 
  private:
@@ -180,20 +195,26 @@ class BasicString {
   }
   friend constexpr auto operator==(const BasicString& lhs,
                                    const BasicString& rhs) noexcept -> bool {
-    return (lhs.length == rhs.length) && Streq(lhs.data(), rhs.data());
+    return (lhs.length() == rhs.length()) && Streq(lhs.data(), rhs.data());
   }
   friend constexpr auto operator==(const BasicString& lhs,
                                    const Char* const rhs) noexcept -> bool {
     return Detail::Streq(lhs.data(), rhs);
   }
 
-  Storage storage = {};
-  size_t length = 0;
-  bool is_small = true;
-  Alty allocator;
+  struct Compressed : public Alty {
+    Storage storage = {};
+    std::size_t length = 0;
+    bool is_small = true;
+  };
+  Compressed compressed;
+
+  constexpr auto allocator() noexcept -> Alty { return compressed; };
 };
 
 using String = BasicString<char, std::allocator<char>>;
+using WString = BasicString<wchar_t, std::allocator<wchar_t>>;
+
 }  // namespace Space
 
 #endif  // SPACE_STRING_HPP
