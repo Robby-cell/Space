@@ -1,11 +1,17 @@
 #ifndef SPACE_STRING_HPP
 #define SPACE_STRING_HPP
 
+#define SPACE_HAS_CXX20 (__cplusplus >= 202002L)
+
 #include <algorithm>
 #include <cstddef>
+#include <iterator>
 #include <memory>
 #include <ostream>
 #include <utility>
+#if SPACE_HAS_CXX20
+#include <compare>
+#endif
 
 namespace std {
 template <class>
@@ -54,10 +60,179 @@ constexpr auto Streq(const Char* const str1, const Char* const str2) noexcept {
 }
 }  // namespace Detail
 
+template <class StringType>
+struct StringConstIterator {
+ public:
+  // NOLINTBEGIN
+  using iterator_category = std::random_access_iterator_tag;
+  using value_type = typename StringType::value_type;
+  using pointer = typename StringType::const_pointer;
+  using reference = const value_type&;
+  using difference_type = typename StringType::difference_type;
+  // NOLINTEND
+
+  constexpr explicit StringConstIterator(value_type* ptr) noexcept
+      : ptr_(ptr) {}
+
+  constexpr auto operator++() noexcept -> StringConstIterator& {
+    ++ptr_;
+    return *this;
+  }
+  constexpr auto operator++(int) noexcept -> StringConstIterator {
+    auto tmp = *this;
+    this->operator++();
+    return tmp;
+  }
+  constexpr auto operator--() noexcept -> StringConstIterator& {
+    --ptr_;
+    return *this;
+  }
+  constexpr auto operator--(int) noexcept -> StringConstIterator {
+    auto tmp = *this;
+    this->operator--();
+    return tmp;
+  }
+
+  constexpr auto operator+=(const difference_type distance) noexcept
+      -> StringConstIterator& {
+    ptr_ += distance;
+    return *this;
+  }
+  constexpr auto operator-=(const difference_type distance) noexcept
+      -> StringConstIterator& {
+    ptr_ -= distance;
+    return *this;
+  }
+
+  constexpr auto operator+(const difference_type distance) const noexcept
+      -> StringConstIterator {
+    auto tmp{*this};
+    tmp += distance;
+    return tmp;
+  }
+  constexpr auto operator-(const difference_type distance) const noexcept
+      -> StringConstIterator {
+    auto tmp{*this};
+    tmp += distance;
+    return tmp;
+  }
+
+  constexpr auto operator[](const difference_type distance) const noexcept
+      -> reference {
+    return ptr_[distance];
+  }
+
+  constexpr auto operator*() const noexcept -> reference { return *ptr_; }
+
+#if SPACE_HAS_CXX20
+  constexpr auto operator<=>(const StringConstIterator& other) const noexcept
+      -> std::strong_ordering = default;
+#else   // ^^^ SPACE_HAS_CXX20
+  constexpr auto operator==(const StringConstIterator& other) const noexcept
+      -> bool {
+    return ptr_ == other.ptr_;
+  }
+  constexpr auto operator!=(const StringConstIterator& other) const noexcept
+      -> bool {
+    return ptr_ != other.ptr_;
+  }
+  constexpr auto operator<(const StringConstIterator& other) const noexcept
+      -> bool {
+    return ptr_ < other.ptr_;
+  }
+  constexpr auto operator>(const StringConstIterator& other) const noexcept
+      -> bool {
+    return other < *this;
+  }
+  constexpr auto operator<=(const StringConstIterator& other) const noexcept
+      -> bool {
+    return !(other < *this);
+  }
+  constexpr auto operator>=(const StringConstIterator& other) const noexcept
+      -> bool {
+    return !(*this < other);
+  }
+#endif  // ^^^ !SPACE_HAS_CXX20
+
+  constexpr auto advance(const difference_type distance) noexcept -> void {
+    ptr_ += distance;
+  }
+
+ protected:
+  value_type* ptr_;
+};
+template <class StringType>
+struct StringIterator : public StringConstIterator<StringType> {
+ public:
+  using Base = StringConstIterator<StringType>;
+  // NOLINTBEGIN
+  using iterator_category = std::random_access_iterator_tag;
+  using value_type = typename StringType::value_type;
+  using pointer = typename StringType::pointer;
+  using reference = value_type&;
+  using difference_type = typename StringType::difference_type;
+  // NOLINTEND
+
+  constexpr explicit StringIterator(value_type* ptr) noexcept : Base(ptr) {}
+
+  constexpr auto operator++() noexcept {
+    Base::operator++();
+    return *this;
+  }
+  constexpr auto operator++(int) noexcept {
+    auto tmp = *this;
+    this->operator++();
+    return tmp;
+  }
+  constexpr auto operator--() noexcept {
+    Base::operator--();
+    return *this;
+  }
+  constexpr auto operator--(int) noexcept {
+    auto tmp = *this;
+    this->operator--();
+    return tmp;
+  }
+
+  constexpr auto operator+=(const difference_type distance) noexcept
+      -> StringIterator& {
+    Base::operator+=(distance);
+    return *this;
+  }
+  constexpr auto operator-=(const difference_type distance) noexcept
+      -> StringIterator& {
+    Base::operator-=(distance);
+    return *this;
+  }
+  constexpr auto operator+(const difference_type distance) const noexcept
+      -> StringIterator {
+    auto tmp{*this};
+    tmp += distance;
+    return tmp;
+  }
+  constexpr auto operator-(const difference_type distance) const noexcept
+      -> StringIterator {
+    auto tmp{*this};
+    tmp += distance;
+    return tmp;
+  }
+
+  constexpr auto operator[](const difference_type distance) const noexcept
+      -> reference {
+    return const_cast<reference>(Base::operator[](distance));
+  }
+
+  constexpr auto operator*() const noexcept -> reference { return *Base::ptr_; }
+
+ private:
+};
+
 template <typename Char, typename MyAlty = std::allocator<Char>>
 class BasicString {
  private:
   // NOLINTBEGIN
+  using Self = BasicString<Char, MyAlty>;
+
   using Alty =
       typename std::allocator_traits<MyAlty>::template rebind_alloc<Char>;
   using AltyTraits = std::allocator_traits<Alty>;
@@ -73,17 +248,19 @@ class BasicString {
 
   using allocator_type = Alty;
 
-  using iterator = void;
-  using const_iterator = void;
+  using iterator = StringIterator<Self>;
+  using const_iterator = StringConstIterator<Self>;
   // NOLINTEND
 
   struct StringAlloc {
     Char* ptr;
     std::size_t capacity;
   };
-  static constexpr std::size_t MaxBufSize{(sizeof(StringAlloc) / sizeof(Char)) -
-                                          1};
+  static constexpr std::size_t MaxBufSize{(sizeof(StringAlloc) / sizeof(Char))};
+  static constexpr std::size_t MaxBufLength{MaxBufSize - 1};
   union Storage {
+    constexpr Storage() : buf{} {}
+
     Char buf[MaxBufSize] = {};
     StringAlloc alloc;
     Char alias[MaxBufSize];
@@ -92,55 +269,55 @@ class BasicString {
   constexpr auto swap(BasicString& other) noexcept -> void {
     using std::swap;
 
-    std::swap(compressed.storage, other.compressed.storage);
-    std::swap(compressed.length, other.compressed.length);
-    std::swap(compressed.is_small, other.compressed.is_small);
+    std::swap(compressed_.storage, other.compressed_.storage);
+    std::swap(compressed_.length, other.compressed_.length);
+    std::swap(compressed_.is_small, other.compressed_.is_small);
   }
 
  private:
   auto DeallocateCurrentString() -> void {
-    if (!compressed.is_small) {
-      AltyTraits::deallocate(compressed, compressed.storage.alloc.ptr,
-                             compressed.storage.alloc.capacity);
+    if (!compressed_.is_small) {
+      AltyTraits::deallocate(compressed_, compressed_.storage.alloc.ptr,
+                             compressed_.storage.alloc.capacity);
     }
   }
 
   auto TakeCStr(const Char* const str) -> void {
-    compressed.length = Detail::Strlen(str);
-    TakeCStr(str, compressed.length);
+    compressed_.length = Detail::Strlen(str);
+    TakeCStr(str, compressed_.length);
   }
 
   auto TakeCStr(const Char* const str, const std::size_t len) -> void {
-    if (len > MaxBufSize) {
-      compressed.storage.alloc.capacity = len + 1;
-      compressed.storage.alloc.ptr =
-          AltyTraits::allocate(compressed, compressed.storage.alloc.capacity);
+    if (len > MaxBufLength) {
+      compressed_.storage.alloc.capacity = len + 1;
+      compressed_.storage.alloc.ptr =
+          AltyTraits::allocate(compressed_, compressed_.storage.alloc.capacity);
 
-      std::copy(str, str + len, compressed.storage.alloc.ptr);
+      std::copy(str, str + len, compressed_.storage.alloc.ptr);
 
-      compressed.storage.alloc.ptr[len] = Char(0);
-      compressed.is_small = false;
+      compressed_.storage.alloc.ptr[len] = Char(0);
+      compressed_.is_small = false;
     } else {
-      std::copy(str, str + len, compressed.storage.buf);
+      std::copy(str, str + len, compressed_.storage.buf);
 
-      compressed.storage.buf[len] = Char(0);
-      compressed.is_small = true;
+      compressed_.storage.buf[len] = Char(0);
+      compressed_.is_small = true;
     }
   }
 
  public:
-  constexpr BasicString() noexcept : compressed() {}
+  constexpr BasicString() noexcept = default;
   constexpr explicit BasicString(const Char* const str)
-      : compressed{.storage = Storage()} {
+      : compressed_{.storage = Storage()} {
     TakeCStr(str);
   }
   constexpr BasicString(const Char* const str, const std::size_t len)
-      : compressed{.storage = Storage()} {
+      : compressed_{.storage = Storage()} {
     TakeCStr(str, len);
   }
 
   constexpr BasicString(const BasicString& other)
-      :  compressed{
+      :  compressed_{
         .storage = Storage(),
         .length = other.length,
         .is_small = other.is_small,
@@ -171,21 +348,21 @@ class BasicString {
   ~BasicString() { DeallocateCurrentString(); }
 
   constexpr auto data() const noexcept -> const Char* {
-    if (compressed.is_small) {
-      return compressed.storage.buf;
+    if (compressed_.is_small) {
+      return compressed_.storage.buf;
     } else {
-      return compressed.storage.alloc.ptr;
+      return compressed_.storage.alloc.ptr;
     }
   }
   constexpr auto data() noexcept -> Char* {
-    if (compressed.is_small) {
-      return compressed.storage.buf;
+    if (compressed_.is_small) {
+      return compressed_.storage.buf;
     } else {
-      return compressed.storage.alloc.ptr;
+      return compressed_.storage.alloc.ptr;
     }
   }
   constexpr auto length() const noexcept -> size_type {
-    return compressed.length;
+    return compressed_.length;
   }
 
  private:
@@ -203,13 +380,13 @@ class BasicString {
   }
 
   struct Compressed : public Alty {
-    Storage storage = {};
+    Storage storage = Storage();
     std::size_t length = 0;
     bool is_small = true;
   };
-  Compressed compressed;
+  Compressed compressed_ = Compressed();
 
-  constexpr auto allocator() noexcept -> Alty { return compressed; };
+  constexpr auto allocator() noexcept -> Alty { return compressed_; };
 };
 
 using String = BasicString<char, std::allocator<char>>;
