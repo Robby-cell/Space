@@ -319,18 +319,18 @@ class BasicString {
   constexpr BasicString(const BasicString& other)
       :  compressed_{
         .storage = Storage(),
-        .length = other.length,
-        .is_small = other.is_small,
+        .length = other.length(),
+        .is_small = other.compressed_.is_small,
       }
       // storage(), length(other.length), is_small(other.is_small)
        {
-    TakeCStr(other.storage.alloc.ptr);
+    TakeCStr(other.compressed_.storage.alloc.ptr);
   }
   constexpr BasicString(BasicString&& other) noexcept { swap(other); }
   auto operator=(const BasicString& other) -> BasicString& {
     if (this != &other) {
       DeallocateCurrentString();
-      TakeCStr(other.data(), other.length);
+      TakeCStr(other.data(), other.length());
     }
     return *this;
   }
@@ -368,7 +368,7 @@ class BasicString {
  private:
   friend auto operator<<(std::ostream& os, const BasicString<Char, MyAlty>& str)
       -> std::ostream& {
-    return os.write(str.data(), str.length);
+    return os.write(str.data(), str.length());
   }
   friend constexpr auto operator==(const BasicString& lhs,
                                    const BasicString& rhs) noexcept -> bool {
