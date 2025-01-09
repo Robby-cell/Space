@@ -113,7 +113,7 @@ struct StringConstIterator {
   constexpr auto operator-(const difference_type distance) const noexcept
       -> StringConstIterator {
     auto tmp{*this};
-    tmp += distance;
+    tmp -= distance;
     return tmp;
   }
 
@@ -134,7 +134,7 @@ struct StringConstIterator {
   }
   constexpr auto operator!=(const StringConstIterator& other) const noexcept
       -> bool {
-    return ptr_ != other.ptr_;
+    return !(ptr_ == other.ptr_);
   }
   constexpr auto operator<(const StringConstIterator& other) const noexcept
       -> bool {
@@ -213,7 +213,7 @@ struct StringIterator : public StringConstIterator<StringType> {
   constexpr auto operator-(const difference_type distance) const noexcept
       -> StringIterator {
     auto tmp{*this};
-    tmp += distance;
+    tmp -= distance;
     return tmp;
   }
 
