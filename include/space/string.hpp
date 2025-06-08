@@ -1,6 +1,10 @@
 #ifndef SPACE_STRING_HPP
 #define SPACE_STRING_HPP
 
+#ifdef _MSVC_LANG
+#pragma push_macro("__cplusplus")
+#define __cplusplus _MSVC_LANG
+#endif  // _MSVC_LANG
 #define SPACE_HAS_CXX20 (__cplusplus >= 202002L)
 
 #include <algorithm>
@@ -233,9 +237,9 @@ class BasicString {
   constexpr auto swap(BasicString& other) noexcept -> void {
     using std::swap;
 
-    std::swap(compressed_.storage, other.compressed_.storage);
-    std::swap(compressed_.length, other.compressed_.length);
-    std::swap(compressed_.is_small, other.compressed_.is_small);
+    swap(compressed_.storage, other.compressed_.storage);
+    swap(compressed_.length, other.compressed_.length);
+    swap(compressed_.is_small, other.compressed_.is_small);
   }
 
  private:
@@ -357,5 +361,9 @@ using String = BasicString<char, std::allocator<char>>;
 using WString = BasicString<wchar_t, std::allocator<wchar_t>>;
 
 }  // namespace Space
+
+#ifdef _MSVC_LANG
+#pragma pop_macro("__cplusplus")
+#endif  // _MSVC_LANG
 
 #endif  // SPACE_STRING_HPP

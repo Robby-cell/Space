@@ -8,11 +8,11 @@ test: debug
 	./${TEST}
 
 debug: ${BUILD_DIR}/
-	cmake --preset=debug && \
+	cmake --preset=vcpkg_debug && \
     cmake --build build
 
 release: ${BUILD_DIR}/
-	cmake --preset=release && \
+	cmake --preset=vcpkg_release && \
     cmake --build build
 
 build/:
